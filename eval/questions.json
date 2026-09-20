@@ -1,0 +1,77 @@
+[
+  {
+    "question": "What R-squared did the final LSTM model achieve on Bunchgrass Meadow?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["0.954"]
+  },
+  {
+    "question": "What R-squared did the final LSTM model achieve on Swift Creek?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["0.405"]
+  },
+  {
+    "question": "What DACP coverage did Paradise achieve at the 70% target?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["54.1%"]
+  },
+  {
+    "question": "What value of k_adap was held constant across all coverage targets in the final report?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["0.005"]
+  },
+  {
+    "question": "How many hidden units does each LSTM layer use?",
+    "expect_source_contains": null,
+    "expect_answer_contains": ["128"]
+  },
+  {
+    "question": "What loss function was used to train the LSTM, and why?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["Huber"]
+  },
+  {
+    "question": "What is the ratio between mu2 and mu1 in the DACP update mechanism, and why is it asymmetric?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["17"]
+  },
+  {
+    "question": "How many days are in the LSTM's sliding input window?",
+    "expect_source_contains": null,
+    "expect_answer_contains": ["14"]
+  },
+  {
+    "question": "What rolling window size does DACP use for calibration residuals?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["180"]
+  },
+  {
+    "question": "Which site has the highest peak discharge and what is that value?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["Bunchgrass", "2,922"]
+  },
+  {
+    "question": "Who introduced the DACP method this report builds on?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["Zong"]
+  },
+  {
+    "question": "What train/test split ratio was used?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["85", "15"]
+  },
+  {
+    "question": "What engineered feature captures soil wetness using an exponentially weighted sum of past rainfall?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["API", "Antecedent"]
+  },
+  {
+    "question": "Which site shows the most severe DACP under-coverage across all four targets?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["Paradise"]
+  },
+  {
+    "question": "What optimizer and learning rate were used to train the LSTM?",
+    "expect_source_contains": "Final_Report",
+    "expect_answer_contains": ["Adam", "1e-3"]
+  }
+]

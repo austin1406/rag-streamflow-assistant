@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Streamflow Report RAG Assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main>
+    <h1>Streamflow RAG Assistant</h1>
+    <p class="subtitle">
+      Ask questions about the LSTM + DACP streamflow uncertainty report, its slide decks,
+      and the training script. Every answer cites the chunk it came from.
+    </p>
+
+    {% if backend_error %}
+    <div class="banner warn">
+      No LLM backend is reachable yet ({{ backend_error }}). Retrieval still works below —
+      set an API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GROQ_API_KEY) or run Ollama to enable answers.
+    </div>
+    {% else %}
+    <div class="banner ok">Generation backend: {{ provider }}</div>
+    {% endif %}
+
+    <form id="query-form">
+      <input type="text" id="question" name="question" placeholder="e.g. What R&sup2; did the LSTM achieve on Bunchgrass Meadow?" autofocus>
+      <button type="submit">Ask</button>
+    </form>
+
+    <div id="result"></div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
