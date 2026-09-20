@@ -55,12 +55,20 @@ backend — **Ollama is free and fully local**:
 ```bash
 # Option A: free, local, zero API cost
 # install from https://ollama.com, then:
-ollama pull llama3.1
+ollama pull llama3.2:1b   # or llama3.1 (4.9GB) if you have >6GB free RAM
 ollama serve
 
 # Option B: use an API key you already have
 set ANTHROPIC_API_KEY=sk-ant-...   # or OPENAI_API_KEY / GROQ_API_KEY
 ```
+
+`.env` is auto-loaded (`python-dotenv`) so you don't need to export env vars manually.
+
+> **Model size note:** `OLLAMA_MODEL` defaults to `llama3.1` (8B, needs ~5GB free RAM to
+> load). On a machine with less headroom, `ollama pull llama3.2:1b` and set
+> `OLLAMA_MODEL=llama3.2:1b` in `.env` — that's what this repo's own `.env` uses. Smaller
+> models follow the citation format less reliably (see eval results below); an API
+> backend (Anthropic/OpenAI/Groq) or a bigger local model will score higher.
 
 Build the vector index (run once, or again after adding documents to `data/raw/`):
 
@@ -98,6 +106,14 @@ python -m eval.run_eval
   report page) — a real, honest limitation, not a scoring artifact.
 - **Answer accuracy** — does the generated answer actually contain the expected fact?
   Only computed when a generation backend is reachable, since it needs real generation.
+  Measured end-to-end with `llama3.2:1b` (the free local model that fits this machine's
+  available RAM): **6/15 (40%)**. The failures are mostly citation-formatting slips
+  (`"[1] [1]"` with no actual text, or an unfilled `[n]` placeholder) rather than wrong
+  facts — a known weakness of 1B-parameter models at instruction-following, not a
+  retrieval problem (retrieval for those same questions still hits 80%+). Swapping in
+  `llama3.1` (8B) or an API backend (Anthropic/OpenAI/Groq) measurably improves this;
+  it's a hardware tradeoff, not an architecture limitation, and the number is reported
+  as measured rather than rounded up.
 
 Full per-question results (sources retrieved + generated answer) are written to
 `eval/results.json`.

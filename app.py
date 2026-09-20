@@ -4,6 +4,9 @@ Run with:
     python app.py
 Then open http://localhost:5000
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, render_template, request, jsonify
 
 from rag.rag import answer

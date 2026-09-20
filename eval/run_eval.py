@@ -12,6 +12,9 @@ import argparse
 import json
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from rag.rag import retrieve, build_prompt
 from rag.llm_backend import get_backend, BackendError
 
