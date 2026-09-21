@@ -4,3 +4,4 @@ __pycache__/
 data/chroma/
 eval/results.json
 .env
+.pytest_cache/

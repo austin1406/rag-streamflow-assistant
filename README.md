@@ -118,6 +118,28 @@ python -m eval.run_eval
 Full per-question results (sources retrieved + generated answer) are written to
 `eval/results.json`.
 
+## Testing & CI
+
+```bash
+pip install -r requirements.txt   # includes pytest
+pytest -v
+```
+
+14 tests across three layers:
+- **`tests/test_chunk.py`, `tests/test_extract.py`** — unit tests for the pure chunking
+  logic and the PDF/PPTX/Python extraction functions, run against the real files in
+  `data/raw/` (not mocks), asserting known content actually gets extracted correctly.
+- **`tests/test_llm_backend.py`** — provider auto-detection and error-handling logic for
+  the pluggable backend, with no network calls.
+- **`tests/test_retrieval.py`** — an integration test that builds the real vector index
+  into a scratch directory and asserts retrieval hit-rate stays at or above 60% (measured
+  baseline is 80%; the margin absorbs minor embedding-model drift without going flaky).
+  This formalizes what `eval/run_eval.py` measures manually into an assertion that fails
+  the build on a real regression.
+
+`.github/workflows/test.yml` runs the full suite on every push and pull request via
+GitHub Actions (CPU-only torch, cached pip + HuggingFace model downloads).
+
 ## Project layout
 
 ```
@@ -131,6 +153,8 @@ rag/
 eval/
   questions.json  15 known-answer test questions
   run_eval.py     retrieval hit-rate + answer-accuracy grading
+tests/            pytest suite (unit + retrieval integration tests)
+.github/workflows/test.yml   CI: runs pytest on every push/PR
 app.py            Flask API + UI
 templates/, static/
 data/raw/         source documents (report PDF, 2 slide decks, training script)
