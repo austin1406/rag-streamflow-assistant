@@ -1,5 +1,8 @@
 # Streamflow RAG Assistant
 
+[![Tests](https://github.com/austin1406/rag-streamflow-assistant/actions/workflows/test.yml/badge.svg)](https://github.com/austin1406/rag-streamflow-assistant/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A citation-grounded question-answering system over a real research artifact: my
 [LSTM + Dual Adaptive Conformal Prediction](data/raw/Final_Report_LSTM_DACP.pdf) final
 report on streamflow uncertainty quantification across five Washington State watersheds,
