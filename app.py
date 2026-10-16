@@ -10,6 +10,7 @@ load_dotenv()
 from flask import Flask, render_template, request, jsonify
 
 from rag.rag import answer
+from rag.agent import run_agent
 from rag.llm_backend import get_backend, BackendError
 
 app = Flask(__name__)
@@ -38,6 +39,20 @@ def api_query():
         return jsonify({"error": "question is required"}), 400
     result = answer(question, top_k=int(data.get("top_k", 5)))
     return jsonify(result)
+
+
+@app.route("/api/agent", methods=["POST"])
+def api_agent():
+    data = request.get_json(force=True, silent=True) or {}
+    question = (data.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "question is required"}), 400
+    return jsonify(run_agent(question))
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":

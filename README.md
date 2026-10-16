@@ -89,6 +89,56 @@ Open http://localhost:5000. Retrieval works immediately with no backend configur
 you'll see the retrieved source chunks with distances; the generated answer requires
 one of the backends above.
 
+## Tool-calling agent
+
+`POST /api/agent` runs a small agent loop (`rag/agent.py`) instead of one-shot retrieval. The
+model can call two tools, then return structured output:
+
+- `search_documents(query, top_k)`: retrieval over the vector store; results are numbered
+  passages the final answer cites.
+- `query_eval_results(sql)`: one read-only `SELECT` over a SQLite database of the evaluation
+  questions and retrieval results (`python -m rag.eval_db` builds it).
+
+```bash
+curl -X POST localhost:5000/api/agent -H "Content-Type: application/json" \
+  -d '{"question": "How many evaluation questions did retrieval get right?"}'
+```
+
+Returns `answer`, `citations` (number, source, location), `chunks`, `tool_calls`, `steps`,
+and `warnings`. The protocol is plain JSON replies, so it needs only each backend's existing
+`generate(prompt)` and does not depend on any one vendor's tool-calling API. The loop and its
+guardrails are tested against a scripted fake model; small local models are expected to follow
+the JSON format less reliably than API models, so format errors are fed back for a retry.
+
+Guardrails, each covered by tests: tools are whitelisted and their arguments validated; the
+SQL tool allows a single `SELECT` only, on a read-only connection with a SQLite authorizer,
+row limit, and time limit; the loop stops after 4 steps; and any citation that does not match
+a passage the agent actually retrieved is dropped and reported in `warnings`.
+
+## Evaluation history API (Spring Boot)
+
+`eval-api/` is a small Java service that stores every evaluation run so hit rates can be
+compared over time (different models, different `top_k`). It is a Spring Boot REST API
+(Spring Data JPA, Bean Validation, H2) with its own test suite; see
+[eval-api/README.md](eval-api/README.md).
+
+```bash
+cd eval-api && ./mvnw spring-boot:run          # http://localhost:8080
+python -m eval.run_eval                         # writes eval/results.json
+python -m eval.publish_results --label baseline --model llama3.2:1b
+# Stored run 1 'baseline': retrieval 12/15 (80%), answers 6/15 (40%)
+```
+
+`eval/publish_results.py` posts the results of `run_eval` to the API, and reports a clear error
+if the API is down or rejects the run.
+
+## Deployment
+
+The app ships as a Docker image (index and embedding model baked in, served by gunicorn), and
+`.github/workflows/deploy.yml` builds it, publishes it to GitHub Container Registry, and
+deploys it to an AWS EC2 Ubuntu server over SSH after the tests pass. See
+[DEPLOY.md](DEPLOY.md) for setup.
+
 ## Evaluation
 
 `eval/questions.json` holds 15 known-answer questions grounded in specific numbers from
@@ -128,7 +178,7 @@ pip install -r requirements.txt   # includes pytest
 pytest -v
 ```
 
-14 tests across three layers:
+72 Python tests (plus 26 Java tests in `eval-api/`) across these layers:
 - **`tests/test_chunk.py`, `tests/test_extract.py`** — unit tests for the pure chunking
   logic and the PDF/PPTX/Python extraction functions, run against the real files in
   `data/raw/` (not mocks), asserting known content actually gets extracted correctly.
@@ -139,6 +189,13 @@ pytest -v
   baseline is 80%; the margin absorbs minor embedding-model drift without going flaky).
   This formalizes what `eval/run_eval.py` measures manually into an assertion that fails
   the build on a real regression.
+- **`tests/test_tools.py`, `tests/test_agent.py`** — the agent's tools and loop, driven by a
+  scripted fake backend (no network, no API keys): reply parsing, citation mapping,
+  hallucinated-citation handling, retries, the step limit, and SQL safety (every write or
+  multi-statement query is rejected and the database is verified unchanged).
+- **`tests/test_app.py`** — `/health` and `/api/agent` endpoint behavior.
+- **`tests/test_publish_results.py`** — payload mapping and error handling for publishing
+  evaluation runs to the Spring Boot API.
 
 `.github/workflows/test.yml` runs the full suite on every push and pull request via
 GitHub Actions (CPU-only torch, cached pip + HuggingFace model downloads).
@@ -153,11 +210,19 @@ rag/
   ingest.py        end-to-end indexing script
   llm_backend.py  Ollama / Anthropic / OpenAI / Groq, chosen by env var
   rag.py          retrieval + prompt construction + citation-required generation
+  agent.py        tool-calling loop with structured output and citation guardrails
+  tools.py        search_documents and a read-only SQL tool
+  eval_db.py      builds the SQLite database the SQL tool queries
 eval/
   questions.json  15 known-answer test questions
   run_eval.py     retrieval hit-rate + answer-accuracy grading
+  publish_results.py  sends a run's results to the eval-api service
+eval-api/         Spring Boot service that stores evaluation runs (own tests, own CI job)
 tests/            pytest suite (unit + retrieval integration tests)
 .github/workflows/test.yml   CI: runs pytest on every push/PR
+.github/workflows/eval-api.yml  CI: runs the eval-api Maven tests when eval-api/ changes
+.github/workflows/deploy.yml CD: builds the image, pushes to GHCR, deploys to EC2
+Dockerfile, deploy/          container image and server scripts (see DEPLOY.md)
 app.py            Flask API + UI
 templates/, static/
 data/raw/         source documents (report PDF, 2 slide decks, training script)
