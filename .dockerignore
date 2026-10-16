@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.env
+data/chroma
+data/eval.sqlite
+eval/results.json
+tests
+deploy
+eval-api
+*.md

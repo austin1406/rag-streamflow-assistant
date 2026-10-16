@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 data/chroma/
+data/eval.sqlite
 eval/results.json
 .env
 .pytest_cache/
