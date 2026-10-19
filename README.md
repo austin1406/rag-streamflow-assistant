@@ -108,14 +108,23 @@ Returns `answer`, `citations` (number, source, location), `chunks`, `tool_calls`
 and `warnings`. The protocol is plain JSON replies, so it needs only each backend's existing
 `generate(prompt)` and does not depend on any one vendor's tool-calling API.
 
-**Measured with the free local model (`llama3.2:1b`) on the 15 evaluation questions:** the
-model called a tool by itself on 15/15, but it produced a final answer on only 7/15 and a
-correct one on 1/15, compared with 6/15 for the plain one-shot pipeline above. A 1B model is
-too small to reason through an agent loop, so agent mode is meant for an API model
-(Anthropic / OpenAI / Groq) or a larger local one; use `/api/query` with small local models.
-Getting there required a worked example in the prompt, tolerant citation parsing (small models
-quote the numbers), and an automatic search when a model answers without calling a tool.
-The loop and guardrails are otherwise tested against a scripted fake model.
+**Measured on the 15 evaluation questions (answers graded by checking for the expected fact):**
+
+| Model | Plain one-shot pipeline | Agent loop |
+|---|---|---|
+| `llama3.2:1b` (free, local via Ollama) | 6/15 (40%) | 1/15 |
+| `openai/gpt-oss-120b` (Groq) | 10/15 (67%) | 2/15 |
+| `qwen/qwen3.8-27b` (Groq, the default) | **12/15 (80%)** | **11/15 (73%)** |
+
+With Qwen the model called a tool by itself on 15/15 questions and answered 13/15 (the other 2
+returned no final answer). The agent's failures with the other two models were instructive:
+the 1B model is too small to reason through an agent loop, and `gpt-oss` is built around its own
+tool-calling format, so it wrote its output into a hidden reasoning field or skipped the search
+and answered from memory. Use a model that follows plain JSON instructions for agent mode, or
+`/api/query` with small local models. Getting there required a worked example in the prompt,
+tolerant citation parsing (small models quote the numbers), and an automatic search when a
+model answers without calling a tool. The Groq backend also waits and retries on rate limits.
+Numbers are single runs on a small question set, so treat them as indicative, not a benchmark.
 
 Guardrails, each covered by tests: tools are whitelisted and their arguments validated; the
 SQL tool allows a single `SELECT` only, on a read-only connection with a SQLite authorizer,
@@ -185,7 +194,7 @@ pip install -r requirements.txt   # includes pytest
 pytest -v
 ```
 
-82 Python tests (plus 26 Java tests in `eval-api/`) across these layers:
+89 Python tests (plus 26 Java tests in `eval-api/`) across these layers:
 - **`tests/test_chunk.py`, `tests/test_extract.py`** — unit tests for the pure chunking
   logic and the PDF/PPTX/Python extraction functions, run against the real files in
   `data/raw/` (not mocks), asserting known content actually gets extracted correctly.

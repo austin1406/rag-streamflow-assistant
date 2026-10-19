@@ -5,11 +5,35 @@ Backend is chosen by LLM_PROVIDER env var ("ollama" | "anthropic" | "openai" | "
 or auto-detected from whichever API key is set, falling back to Ollama.
 """
 import os
+import time
+
 import requests
+
+MAX_RETRIES = 3
+MAX_RETRY_WAIT_SECONDS = 65
+_sleep = time.sleep
 
 
 class BackendError(RuntimeError):
     pass
+
+
+def _retry_wait(response, attempt: int) -> float:
+    try:
+        wait = float(response.headers.get("retry-after", ""))
+    except (TypeError, ValueError):
+        wait = 2.0 ** (attempt + 1)
+    return min(wait, MAX_RETRY_WAIT_SECONDS)
+
+
+def _post_with_retry(url: str, **kwargs):
+    """POST that waits and retries on rate limits (429) and temporary server errors."""
+    for attempt in range(MAX_RETRIES + 1):
+        response = requests.post(url, **kwargs)
+        if response.status_code not in (429, 500, 502, 503) or attempt == MAX_RETRIES:
+            return response
+        _sleep(_retry_wait(response, attempt))
+    return response
 
 
 def _require_key(env_var: str) -> str:
@@ -61,7 +85,7 @@ class AnthropicBackend:
         self.model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 
     def generate(self, prompt: str) -> str:
-        r = requests.post(
+        r = _post_with_retry(
             "https://api.anthropic.com/v1/messages",
             headers={
                 "x-api-key": self.api_key,
@@ -88,7 +112,7 @@ class OpenAIBackend:
         self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
     def generate(self, prompt: str) -> str:
-        r = requests.post(
+        r = _post_with_retry(
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={
@@ -108,17 +132,25 @@ class GroqBackend:
 
     def __init__(self):
         self.api_key = _require_key("GROQ_API_KEY")
-        self.model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+        self.model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+
+    def _payload(self, prompt: str) -> dict:
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 2048,
+        }
+        if self.model.startswith("openai/gpt-oss"):
+            # Reasoning models spend hidden tokens thinking; keep that small so the visible
+            # answer is not cut off by max_tokens.
+            payload["reasoning_effort"] = "low"
+        return payload
 
     def generate(self, prompt: str) -> str:
-        r = requests.post(
+        r = _post_with_retry(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
-            json={
-                "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 800,
-            },
+            json=self._payload(prompt),
             timeout=120,
         )
         if r.status_code >= 400:
