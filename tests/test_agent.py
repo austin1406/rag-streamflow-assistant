@@ -52,13 +52,25 @@ def test_parse_message_accepts_tool_call_inside_extra_text():
         '{"tool": "search_documents", "args": "oops"}',
         '{"final": "just a string"}',
         '{"final": {"answer": "", "citations": []}}',
-        '{"final": {"answer": "ok", "citations": ["1"]}}',
-        '{"final": {"answer": "ok", "citations": [true]}}',
+        '{"final": {"answer": "[1][1]", "citations": [1]}}',
+        '{"final": {"answer": "[1, 2, 3]", "citations": []}}',
+        '{"final": {"answer": "A fine answer", "citations": ["abc"]}}',
+        '{"final": {"answer": "A fine answer", "citations": [true]}}',
+        '{"final": {"answer": "A fine answer", "citations": [{"n": 1}]}}',
     ],
 )
 def test_parse_message_rejects_malformed_replies(raw):
     with pytest.raises(AgentFormatError):
         parse_message(raw)
+
+
+@pytest.mark.parametrize(
+    "citations, expected",
+    [([1, 2], [1, 2]), (["1", "[2]"], [1, 2]), ("[1, 2, 3]", [1, 2, 3]), ([], [])],
+)
+def test_parse_message_normalizes_quoted_citations(citations, expected):
+    raw = json.dumps({"final": {"answer": "The value is 0.954", "citations": citations}})
+    assert parse_message(raw)["citations"] == expected
 
 
 def test_search_then_final_answer_with_mapped_citations():
@@ -75,7 +87,8 @@ def test_search_then_final_answer_with_mapped_citations():
     assert result["citations"] == [{"n": 1, "source": "report.pdf", "loc": "page 2"}]
     assert result["steps"] == 2
     assert result["tool_calls"] == [
-        {"tool": "search_documents", "args": {"query": "bunchgrass r2", "top_k": 2}, "ok": True, "detail": "2 passages"}
+        {"tool": "search_documents", "args": {"query": "bunchgrass r2", "top_k": 2}, "ok": True,
+         "detail": "2 passages", "auto": False}
     ]
     assert [c["n"] for c in result["chunks"]] == [1, 2]
     assert "[1] (source: report.pdf, page 2)" in backend.prompts[1]
@@ -117,13 +130,44 @@ def test_answer_with_no_valid_citation_is_flagged():
 
 
 def test_agent_recovers_from_an_invalid_reply():
-    backend = ScriptedBackend(["I think the answer is 0.954", final("0.954", [])])
+    backend = ScriptedBackend(["I think the answer is 0.954", final("The value is 0.954 [1]", [1])])
     result = run_agent("q", backend=backend, retrieve_fn=fake_retrieve)
 
-    assert result["answer"] == "0.954"
+    assert result["answer"] == "The value is 0.954 [1]"
     assert result["steps"] == 2
     assert any("invalid reply" in w for w in result["warnings"])
     assert "invalid reply" in backend.prompts[1]
+
+
+def test_answering_before_any_tool_triggers_an_automatic_search():
+    backend = ScriptedBackend([final("Paris is the capital", [1]), final("The R2 was 0.954 [1]", [1])])
+    result = run_agent("What was the R2?", backend=backend, retrieve_fn=fake_retrieve)
+
+    assert result["answer"] == "The R2 was 0.954 [1]"
+    assert [c["auto"] for c in result["tool_calls"]] == [True]
+    assert result["tool_calls"][0]["args"]["query"] == "What was the R2?"
+    assert any("before using any tool" in w for w in result["warnings"])
+    assert any("run automatically" in w for w in result["warnings"])
+    assert "search_documents was run for you" in backend.prompts[1]
+    assert result["citations"] == [{"n": 1, "source": "report.pdf", "loc": "page 2"}]
+
+
+def test_no_automatic_search_when_the_model_already_used_a_tool():
+    backend = ScriptedBackend([tool("search_documents", query="x"), final("The R2 was 0.954 [1]", [1])])
+    result = run_agent("q", backend=backend, retrieve_fn=fake_retrieve)
+
+    assert [c["auto"] for c in result["tool_calls"]] == [False]
+    assert not any("automatically" in w for w in result["warnings"])
+
+
+def test_a_citation_only_answer_is_rejected_and_retried():
+    backend = ScriptedBackend(
+        [tool("search_documents", query="x"), final("[1][1]", [1]), final("The R2 was 0.954 [1]", [1])]
+    )
+    result = run_agent("q", backend=backend, retrieve_fn=fake_retrieve)
+
+    assert result["answer"] == "The R2 was 0.954 [1]"
+    assert any("not just numbers or citations" in w for w in result["warnings"])
 
 
 def test_bad_tool_arguments_are_reported_back_to_the_model():
@@ -184,7 +228,9 @@ def test_destructive_sql_from_the_model_is_blocked(tmp_path):
     result = run_agent("drop it", backend=backend, db_path=db_path)
 
     assert result["tool_calls"][0]["ok"] is False
-    check = ScriptedBackend([tool("query_eval_results", sql="SELECT COUNT(*) FROM eval_questions"), final("ok", [])])
+    check = ScriptedBackend(
+        [tool("query_eval_results", sql="SELECT COUNT(*) FROM eval_questions"), final("All good here", [])]
+    )
     still_there = run_agent("count", backend=check, db_path=db_path)
     assert still_there["tool_calls"][0]["ok"] is True
 

@@ -106,9 +106,16 @@ curl -X POST localhost:5000/api/agent -H "Content-Type: application/json" \
 
 Returns `answer`, `citations` (number, source, location), `chunks`, `tool_calls`, `steps`,
 and `warnings`. The protocol is plain JSON replies, so it needs only each backend's existing
-`generate(prompt)` and does not depend on any one vendor's tool-calling API. The loop and its
-guardrails are tested against a scripted fake model; small local models are expected to follow
-the JSON format less reliably than API models, so format errors are fed back for a retry.
+`generate(prompt)` and does not depend on any one vendor's tool-calling API.
+
+**Measured with the free local model (`llama3.2:1b`) on the 15 evaluation questions:** the
+model called a tool by itself on 15/15, but it produced a final answer on only 7/15 and a
+correct one on 1/15, compared with 6/15 for the plain one-shot pipeline above. A 1B model is
+too small to reason through an agent loop, so agent mode is meant for an API model
+(Anthropic / OpenAI / Groq) or a larger local one; use `/api/query` with small local models.
+Getting there required a worked example in the prompt, tolerant citation parsing (small models
+quote the numbers), and an automatic search when a model answers without calling a tool.
+The loop and guardrails are otherwise tested against a scripted fake model.
 
 Guardrails, each covered by tests: tools are whitelisted and their arguments validated; the
 SQL tool allows a single `SELECT` only, on a read-only connection with a SQLite authorizer,
@@ -178,7 +185,7 @@ pip install -r requirements.txt   # includes pytest
 pytest -v
 ```
 
-72 Python tests (plus 26 Java tests in `eval-api/`) across these layers:
+82 Python tests (plus 26 Java tests in `eval-api/`) across these layers:
 - **`tests/test_chunk.py`, `tests/test_extract.py`** — unit tests for the pure chunking
   logic and the PDF/PPTX/Python extraction functions, run against the real files in
   `data/raw/` (not mocks), asserting known content actually gets extracted correctly.
