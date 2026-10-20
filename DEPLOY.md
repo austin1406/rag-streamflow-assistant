@@ -63,3 +63,27 @@ Push to `master` (or run **Deploy** manually from the Actions tab). Open
 - To stop paying, stop or terminate the instance in the AWS console.
 - To test the image on your own machine: `docker build -t rag . && docker run --rm -p 8000:8000 --env-file .env rag`
   (the image is about 2 GB).
+
+## Stopping and restarting the server
+
+Stopping the instance in the AWS console (Instance state > Stop) ends compute charges; only the
+20 GB disk keeps costing a little. Everything on the disk survives, including Docker, the app
+image, and `/opt/rag/.env`.
+
+**To start it again:**
+
+1. EC2 > Instances > select the instance > **Instance state > Start instance**.
+2. Wait for **Running** and copy the new **Public IPv4 address** (it changes on every start unless
+   you attach an Elastic IP).
+3. Update the GitHub secret so future deploys find the server:
+   `gh secret set EC2_HOST --body "<new ip>"`
+4. The container restarts by itself (`--restart unless-stopped`). After a minute or two, open
+   `http://<new ip>/health`. If it does not respond, SSH in and run `docker ps`, then
+   `docker start rag`, or re-run the **Deploy** workflow from the Actions tab.
+
+While the server is stopped, pushes to `master` still build and publish the image; the deploy
+step notices the server is unreachable and skips instead of failing.
+
+**If you terminated the instance instead of stopping it,** start over from "One-time setup"
+above: launch a new instance, run `deploy/bootstrap_ec2.sh`, create `/opt/rag/.env`, update the
+`EC2_HOST` and `EC2_SSH_KEY` secrets, and run the Deploy workflow.
