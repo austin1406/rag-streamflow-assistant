@@ -1,6 +1,7 @@
 # Streamflow RAG Assistant
 
 [![Tests](https://github.com/austin1406/rag-streamflow-assistant/actions/workflows/test.yml/badge.svg)](https://github.com/austin1406/rag-streamflow-assistant/actions/workflows/test.yml)
+[![Deploy](https://github.com/austin1406/rag-streamflow-assistant/actions/workflows/deploy.yml/badge.svg)](https://github.com/austin1406/rag-streamflow-assistant/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A citation-grounded question-answering system over a real research artifact: my
@@ -10,6 +11,17 @@ plus its two companion slide decks and the training script.
 
 Ask a question, get an answer with inline `[n]` citations, and see the exact source
 chunk (document + page/slide number) each claim was pulled from — no black box.
+
+## Live demo
+
+Deployed on an AWS EC2 instance (Ubuntu, Docker) by the GitHub Actions pipeline described in
+[DEPLOY.md](DEPLOY.md): **http://18.116.112.248/**
+
+- It runs on a small server with a free-tier LLM key, so it can be slow, rate-limited, or offline.
+  It is HTTP only, and the address changes if the server is restarted.
+- Endpoints: `GET /health`, `POST /api/query` (one-shot answer with citations), and
+  `POST /api/agent` (tool-calling agent; see below).
+- Every push to `master` that passes the tests rebuilds the Docker image and redeploys it.
 
 ## Why this exists
 
