@@ -63,11 +63,14 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
-          if [ -n "$EC2_HOST" ] && [ -n "$EC2_SSH_KEY" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ -z "$EC2_HOST" ] || [ -z "$EC2_SSH_KEY" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "::notice::EC2_HOST and EC2_SSH_KEY are not set. The image was built and pushed; the server deploy was skipped."
+          elif ! timeout 15 bash -c "exec 3<>/dev/tcp/${EC2_HOST}/22" 2>/dev/null; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::The server at EC2_HOST is not reachable on port 22 (instance stopped, or the IP changed). The image was built and pushed; the server deploy was skipped."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Deploy to EC2
